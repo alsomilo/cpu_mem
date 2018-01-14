@@ -1,0 +1,54 @@
+##Compile
+
+./CPU/make mem_coord
+
+
+##Execute
+
+./mem_coord 5 
+
+Note: here the argument 5 means, memory coordinator will check memory usage for each domain every 5 second
+ 	*If there is no input argument provide, program will throw a error message, asking for input
+ 	*If intput argument is 0, that is invalid and program will throw a error message, asking to give a non-zero value
+
+
+##Code description
+
+	# High level algorithm 
+        Everytime when memory coordinator is triggered (At time internal of X second), we need to go through all the domains and find out the memory usage for each domain.
+        This is done by API: virDomainMemoryStats, by reading the output memstats tagged by VIR_DOMAIN_MEMORY_STAT_AVAILABLE.
+
+        ocne this is done, we can find out the domain with minimum memory allocated and maximum memory allocated. 
+        Two threshold are defined here below
+
+               "above this threshold, we consider this domain is wasting memory"       
+
+            --------------------------- MEM_WASTE_THRESHOLD ---------------------------
+
+
+               "in between these two thresholds, we consider this domain is using adequate memory"
+                "this is the region where mem_coord needs to get all domain into" 
+
+            
+            --------------------------- MEM_STARVE_THRESHOLD ---------------------------
+
+               "below this threshold, we consider this domain is starving of memory" 
+
+
+There are 3 cases and corresponding solutions, memory cordinater needs to handle:
+
+        /*Case 1: min memory domain is starving && max memory domain is wasting*/
+        /*Solution: take out memory from wasting domain and allocate it to starving domain*/
+
+
+        /*Case 2: min memory domain is starving, max memory domain is NOT wasting*/
+        /*Solution: just add memory to starving domain only*/
+
+
+        /*Case 3: max memory domain is wasting, min memory domain is NOT starving*/
+        /*Solution: just reduce memory from wasting domain only*/
+
+
+API virDomainSetMemory is used to add/reduce memory to/from the starving/wasting domain
+
+

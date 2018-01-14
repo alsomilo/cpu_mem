@@ -1,0 +1,48 @@
+##Compile
+
+./CPU/make cpu_sched
+
+
+##Execute
+
+./cpu_sched 5 
+
+Note: here the argument 5 means, vCPU scheduler will check CPU usage every 5 second
+ 	*If there is no input argument provide, program will throw a error message, asking for input
+ 	*If intput argument is 0, that is invalid and program will throw a error message, asking to give a non-zero value
+
+
+##Code description
+
+	# High level algorithm 
+        Everytime when cpu_sched is triggered (At time internal of X second), we need to know how many domains currently are active. vCPU/pCPU usage is calculated from these active domain are used
+        for calculate CPU usage
+
+        The pCPU usage is an average of all vCPU's usage (mapped to this pCPU) for all the domains. This is calulcated over a peroid of X second, passe by input argv[1]
+        So first we need to find out the vCPU usage, and then caluclate the pCPU usage
+
+                myos_calc_domain_vcpus_pcpu_usage()
+        	* vCPU usage calculation
+                vCPU usage can only be calulated if domains have not changed during X second, this is checked by API: myos_is_domain_list_state_changed
+		   - If domain has changed, then we need to establish a new baseline to start with. So we can set the initial start time for each vCPU and each domain. This can be queried by calling API: 			     virDomainGetVcpus to get the cpuTime at time A
+                   - If domain has not changed, that means we are able to calculate the vCPU usage, for each vCPU and each domain. We again call API virDomainGetVcpus to get the cpuTime at time B. 
+                     Then vCPU usage can be calculated by formular:   
+
+                     vCPU_usage = ((cpuTime@timeB - cpuTime@time-A)/delta_time X in nanosecond);
+
+                * pCPU usage calculation 
+                once vCPU usage is available, pCPU usage is calculated as the average usage from all the vCPU which mapped to this pCPU.
+
+
+                myos_perfom_pcpu_realloc_if_needed()
+                * re-allocation is only needed if any of the pCPU usage is > 50%, (50 is can be user defined in macrio USAGE_THRESHOLD)
+                once cpu_sched determined vCPU-pCPU remapping is needed, it will find the pCPU with maximum usage (busiest) and minimum usage (freeest),.
+                Then go through all active domains and check if vCPU's current mapped pCPU
+			if vCPU is mapped to busiest CPU, re-map this vCPU to freeest pCPU,
+			if vCPU is mapped to freeest CPU, re-map this vCPU to busiest pCPU,
+                        if vCPU is not mapped to either busiest or freeest pCPU, then do nothing.
+                        Basically, the idea is to swap the "cold vCPU (not busy)" and "hot vCPU (busy)" between freeest and busiest pCPU, to achieve the purpse of unload busiest pCPU, and in the meatime, 				let freeest has some work to do.
+
+
+
+
